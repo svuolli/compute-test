@@ -87,6 +87,19 @@ auto poll_event() -> std::optional<SDL_Event>
     return SDL_PollEvent(&e) ? std::make_optional(e) : std::nullopt;
 }
 
+void print_gl_info()
+{
+    auto const get_string = [](auto e)
+    {
+        return reinterpret_cast<char const *>(glGetString(e));
+    };
+
+    std::println("GL vendor: {}", get_string(GL_VENDOR));
+    std::println("GL renderer: {}", get_string(GL_RENDERER));
+    std::println("GL version: {}", get_string(GL_VERSION));
+    std::println("GL shading language version: {}", get_string(GL_SHADING_LANGUAGE_VERSION));
+}
+
 } /* namespace */
 
 int main(int argc, char * argv[])
@@ -103,6 +116,8 @@ int main(int argc, char * argv[])
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
     auto window = gl_window{video};
+
+    print_gl_info();
 
     auto done = false;
     while(!done)
