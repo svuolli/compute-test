@@ -10,6 +10,7 @@ include(compiler_settings)
 find_package(SDL3 REQUIRED CONFIG REQUIRED COMPONENTS SDL3-shared)
 find_package(glm REQUIRED)
 
+add_subdirectory(3rdparty)
 add_subdirectory(src)
 
 message(STATUS "Compiler is ${CMAKE_CXX_COMPILER_ID}")
