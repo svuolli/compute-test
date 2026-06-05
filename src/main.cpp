@@ -2,10 +2,12 @@
 
 #include <SDL3/SDL.h>
 
+#include <iostream>
 #include <optional>
 #include <print>
-#include <utility>
 #include <stdexcept>
+#include <utility>
+#include <vector>
 
 namespace
 {
@@ -100,6 +102,63 @@ void print_gl_info()
     std::println("GL shading language version: {}", get_string(GL_SHADING_LANGUAGE_VERSION));
 }
 
+GLint create_shader(GLenum type, std::string_view source)
+{
+    auto shader_object = glCreateShader(type);
+
+    auto const * const source_data = source.data();
+    auto const source_len = static_cast<GLint>(source.size());
+
+    glShaderSource(shader_object, 1, &source_data, &source_len);
+    glCompileShader(shader_object);
+
+    auto status = GLint{0};
+    glGetShaderiv(shader_object, GL_COMPILE_STATUS, &status);
+
+    auto len = GLsizei{0};
+
+    glGetShaderiv(shader_object, GL_INFO_LOG_LENGTH, &len);
+
+    if(len)
+    {
+        auto cv = GLsizei{0};
+        auto chars = std::vector<char>(static_cast<std::size_t>(len));
+        glGetShaderInfoLog(shader_object, len, &cv, chars.data());
+        std::println(std::cerr, "Shader error: {}", chars.data());
+    }
+
+    if(status == GL_FALSE)
+    {
+        std::println(std::cerr, "Shader compile error.");
+        glDeleteShader(shader_object);
+        return 0u;
+    }
+
+    return shader_object;
+}
+
+auto const * const compute_shader = R"glsl(#version 410 core
+
+struct obj
+{
+    vec4 position;
+    vec4 velocity;
+};
+
+layout(std140, binding = 0) buffer pos
+{
+    obj objects[];
+};
+
+layout(local_size_x = 1000, local_size_y = 1, local_size_z = 1) in;
+
+void main()
+{
+    obj[gl_GlobalInvocationID.x].position += obj[gl_GlobalInvocationID.x].velocity;
+}
+
+)glsl";
+
 } /* namespace */
 
 int main(int argc, char * argv[])
@@ -139,6 +198,4 @@ int main(int argc, char * argv[])
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         window.swap();
     }
-
-    std::println("Hello, world!");
 }
