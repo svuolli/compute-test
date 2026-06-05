@@ -555,7 +555,7 @@ int main(int argc, char * argv[])
 
         render_program.use();
         glUniform4fv(0, 1, &screen_size.x);
-        glDrawArrays(GL_TRIANGLES, 0, num_particles);
+        glDrawArrays(GL_TRIANGLES, 0, num_particles * 6);
 
         window.swap();
 
