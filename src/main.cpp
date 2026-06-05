@@ -5,6 +5,7 @@
 #include <SDL3/SDL.h>
 #include <glm/glm.hpp>
 
+#include <chrono>
 #include <iostream>
 #include <optional>
 #include <print>
@@ -19,8 +20,8 @@
 namespace
 {
 
-auto constexpr work_groups = std::size_t{64};
-auto constexpr work_group_size = std::size_t{64};
+auto constexpr work_groups = std::size_t{256};
+auto constexpr work_group_size = std::size_t{256};
 auto constexpr num_particles = work_group_size * work_groups;
 
 template <SDL_InitFlags flag>
@@ -383,13 +384,14 @@ layout(std430, binding = 0) buffer objs_b
 };
 
 layout (location = 0) uniform vec4 screen_size;
+layout (location = 1) uniform float time_delta;
 
-layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
 void main()
 {
     uint id = gl_GlobalInvocationID.x;
-    objects[id].position += objects[id].velocity;
+    objects[id].position += objects[id].velocity * time_delta;
 
     if(abs(objects[id].position.x) >= screen_size.x)
     {
@@ -435,10 +437,8 @@ const vec2 offset_table[6] = vec2[]
 void main()
 {
     const float sprite_size = 4.0;
-    uint object_id = gl_VertexID / 6;
-    uint vert_id = gl_VertexID % 6;
-    vec2 pos = objects[object_id].position.xy / screen_size.xy;
-    vec2 off = offset_table[vert_id] * sprite_size / screen_size.xy;
+    vec2 pos = objects[gl_InstanceID].position.xy / screen_size.xy;
+    vec2 off = offset_table[gl_VertexID] * sprite_size / screen_size.xy;
     gl_Position = vec4(pos + off, 0.0, 1.0);
 }
 
@@ -466,7 +466,7 @@ std::vector<object_t> create_objects()
     auto rd = std::random_device{};
     auto rng = std::mt19937{rd()};
     auto random_angle = std::uniform_real_distribution<float>{0.0f, 2 * std::numbers::pi_v<float>};
-    auto random_vel = std::uniform_real_distribution<float>{0.02, 0.08f};
+    auto random_vel = std::uniform_real_distribution<float>{60.0, 320.0f};
 
     auto r = std::vector<object_t>{};
     r.reserve(num_particles);
@@ -524,9 +524,18 @@ int main(int argc, char * argv[])
     auto viewport = glm::ivec2{1280, 720};
     auto screen_size = glm::vec4{viewport.x, viewport.y, 0.0f, 0.0f};
 
+    std::println("{} x {} = {} particles", work_group_size, work_groups, num_particles);
     auto done = false;
+    auto const start_time = std::chrono::high_resolution_clock::now();
+    auto prev_frame = start_time;
+    auto frame_count = std::size_t{0};
     while(!done)
     {
+        ++frame_count;
+        auto const frame_time = std::chrono::high_resolution_clock::now();
+        auto const time_delta = std::chrono::duration<float>{frame_time - prev_frame};
+        prev_frame = frame_time;
+
         while(auto const event = poll_event())
         {
             switch(event->type)
@@ -551,11 +560,12 @@ int main(int argc, char * argv[])
 
         compute_program.use();
         glUniform4fv(0, 1, &screen_size.x);
+        glUniform1f(1, time_delta.count());
         glDispatchCompute(work_groups, 1, 1);
 
         render_program.use();
         glUniform4fv(0, 1, &screen_size.x);
-        glDrawArrays(GL_TRIANGLES, 0, num_particles * 6);
+        glDrawArraysInstanced(GL_TRIANGLES, 0, 6, num_particles);
 
         window.swap();
 
@@ -566,6 +576,11 @@ int main(int argc, char * argv[])
             return -1;
         }
     }
+    auto const end_time = std::chrono::high_resolution_clock::now();
+    auto const duration = std::chrono::duration<double>(end_time - start_time);
+
+    std::println("{} frames in {}", frame_count, duration);
+    std::println("{} frames per second", frame_count/duration.count());
 
     glDeleteBuffers(1, &objects_buffer);
 }
