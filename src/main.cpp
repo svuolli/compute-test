@@ -1,4 +1,4 @@
-#include <SDL3/SDL_oldnames.h>
+#include <SDL3/SDL.h>
 #include <cmath>
 #include <glad/glad.h>
 
